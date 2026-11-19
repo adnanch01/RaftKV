@@ -1,0 +1,16 @@
+# Used by docker-compose: containers find each other by service name, and every node
+# stores its Raft state in its own PostgreSQL database.
+
+server:
+  port: 8080
+
+raft:
+  grpc-port: 9090
+  cluster:
+    - { id: n1, grpc-address: "n1:9090", http-address: "http://localhost:8081" }
+    - { id: n2, grpc-address: "n2:9090", http-address: "http://localhost:8082" }
+    - { id: n3, grpc-address: "n3:9090", http-address: "http://localhost:8083" }
+    - { id: n4, grpc-address: "n4:9090", http-address: "http://localhost:8084" }
+    - { id: n5, grpc-address: "n5:9090", http-address: "http://localhost:8085" }
+  storage:
+    type: postgres

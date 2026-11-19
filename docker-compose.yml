@@ -1,0 +1,64 @@
+# A 5-node RaftKV cluster backed by PostgreSQL.
+#
+#   docker compose up --build
+#
+# Node n1 serves http://localhost:8081, n2 serves :8082, ..., n5 serves :8085.
+# Each node keeps its Raft term, vote, and log in its OWN database (raft_n1..raft_n5),
+# just as each server in a real deployment owns its own disk.
+#
+# Failure experiments:
+#   docker compose stop n3       # crash a node
+#   docker compose start n3      # restart it; it recovers from PostgreSQL
+#   docker compose pause n3      # freeze it (like a long GC pause)
+
+x-node: &node
+  build: .
+  depends_on:
+    postgres:
+      condition: service_healthy
+  environment: &node-env
+    SPRING_PROFILES_ACTIVE: docker
+    RAFT_DB_USER: raft
+    RAFT_DB_PASSWORD: raft
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: raft
+      POSTGRES_PASSWORD: raft
+      POSTGRES_DB: raftkv
+    volumes:
+      - ./docker/init-databases.sql:/docker-entrypoint-initdb.d/init-databases.sql:ro
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U raft -d raftkv"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  n1:
+    <<: *node
+    environment: { <<: *node-env, NODE_ID: n1, RAFT_DB_URL: "jdbc:postgresql://postgres:5432/raft_n1" }
+    ports: ["8081:8080"]
+  n2:
+    <<: *node
+    environment: { <<: *node-env, NODE_ID: n2, RAFT_DB_URL: "jdbc:postgresql://postgres:5432/raft_n2" }
+    ports: ["8082:8080"]
+  n3:
+    <<: *node
+    environment: { <<: *node-env, NODE_ID: n3, RAFT_DB_URL: "jdbc:postgresql://postgres:5432/raft_n3" }
+    ports: ["8083:8080"]
+  n4:
+    <<: *node
+    environment: { <<: *node-env, NODE_ID: n4, RAFT_DB_URL: "jdbc:postgresql://postgres:5432/raft_n4" }
+    ports: ["8084:8080"]
+  n5:
+    <<: *node
+    environment: { <<: *node-env, NODE_ID: n5, RAFT_DB_URL: "jdbc:postgresql://postgres:5432/raft_n5" }
+    ports: ["8085:8080"]
+
+volumes:
+  pgdata:

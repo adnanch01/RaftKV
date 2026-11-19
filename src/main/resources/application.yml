@@ -1,0 +1,49 @@
+# Default profile: a 5-node cluster on localhost with in-memory storage.
+# Start each node with a different NODE_ID / HTTP_PORT / GRPC_PORT (see scripts/).
+
+server:
+  port: ${HTTP_PORT:8081}
+
+spring:
+  application:
+    name: raftkv
+
+raft:
+  node-id: ${NODE_ID:n1}
+  grpc-port: ${GRPC_PORT:9091}
+
+  # Every node gets the same member list; node-id picks out "self".
+  cluster:
+    - { id: n1, grpc-address: "localhost:9091", http-address: "http://localhost:8081" }
+    - { id: n2, grpc-address: "localhost:9092", http-address: "http://localhost:8082" }
+    - { id: n3, grpc-address: "localhost:9093", http-address: "http://localhost:8083" }
+    - { id: n4, grpc-address: "localhost:9094", http-address: "http://localhost:8084" }
+    - { id: n5, grpc-address: "localhost:9095", http-address: "http://localhost:8085" }
+
+  # The timing rule from the paper: broadcastTime << electionTimeout << MTBF.
+  # Heartbeats must arrive well before any follower's election timer can fire.
+  heartbeat-interval: 100ms
+  election-timeout-min: 500ms
+  election-timeout-max: 1000ms
+  rpc-timeout: 300ms        # deadline per gRPC call
+  client-timeout: 5s        # how long a REST request waits for its command to commit
+
+  storage:
+    type: ${RAFT_STORAGE:memory}   # memory | postgres
+    url: ${RAFT_DB_URL:jdbc:postgresql://localhost:5432/raftkv}
+    username: ${RAFT_DB_USER:raft}
+    password: ${RAFT_DB_PASSWORD:raft}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level %-22.22thread %msg%n"
+  level:
+    com.raftkv: INFO
+    # Set to DEBUG to see every vote and AppendEntries rejection:
+    # com.raftkv.raft: DEBUG
